@@ -1,0 +1,14 @@
+ipmi-gather.o: ipmi-gather.c ipmi-gather.h ipmi-gather-protos.h network.h \
+  network-protos.h misc.h misc-protos.h
+	${CC} -c ${CFLAGS} ipmi-gather.c
+
+ipmi-send.o: ipmi-send.c ipmi-send.h ipmi-send-protos.h network.h \
+  network-protos.h
+	${CC} -c ${CFLAGS} ipmi-send.c
+
+misc.o: misc.c misc.h misc-protos.h
+	${CC} -c ${CFLAGS} misc.c
+
+network.o: network.c network.h network-protos.h misc.h misc-protos.h
+	${CC} -c ${CFLAGS} network.c
+

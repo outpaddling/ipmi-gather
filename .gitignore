@@ -1,0 +1,6 @@
+ipmi-gather
+ipmi-send
+.*.bak
+*.o
+*.a
+README.html

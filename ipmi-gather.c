@@ -69,11 +69,14 @@ int     check_listen_fd(int listen_fd)
 {
     int             msg_fd;
     ssize_t         bytes;
-    char            *munge_payload;
+    char            *munge_payload,
+                    *separator,
+                    *filename;
     socklen_t       address_len = sizeof (struct sockaddr_in);
     uid_t           munge_uid;
     gid_t           munge_gid;
     struct sockaddr_in client_address = { 0 };
+    FILE            *out_stream;
     
     bytes = 0;
     /* Accept a connection request */
@@ -97,10 +100,33 @@ int     check_listen_fd(int listen_fd)
                      &munge_uid, &munge_gid,
                      ipmi_gather_safe_close);
 
+        puts(munge_payload);
+        
         ipmi_debug("%s(): Got %zd byte message.\n", __FUNCTION__, bytes);
-        printf("Incoming IP : %s\nuid : %d\ngid : %d\n%s\n",
-                    inet_ntoa(client_address.sin_addr),
-                    munge_uid, munge_gid, munge_payload);
+        if ( memcmp(munge_payload, "Local hostname", 14) == 0 )
+        {
+            if ( (separator = strchr(munge_payload, ':')) != NULL )
+            {
+                filename = separator + 2;
+                separator = strchr(filename, '\n');
+                *separator = '\0';
+                printf("Saving to %s\n", filename);
+                // Open while filename is still null-terminated
+                if ( (out_stream = fopen(filename, "w")) == NULL )
+                {
+                    fprintf(stderr, ": Could not open %s for write: %s.\n",
+                            filename, strerror(errno));
+                    exit(EX_CANTCREAT);
+                }
+                // Replace null-terminator with original NL to restore payload
+                *separator = '\n';
+                
+                fprintf(out_stream, "Incoming IP : %s\nuid : %d\ngid : %d\n%s\n",
+                            inet_ntoa(client_address.sin_addr),
+                            munge_uid, munge_gid, munge_payload);
+                fclose(out_stream);
+            }
+        }
         
         if ( bytes == IPMI_RECV_TIMEOUT )
         {

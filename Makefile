@@ -164,6 +164,7 @@ realclean: clean
 
 install: all
 	${MKDIR} -p ${DESTDIR}${PREFIX}/bin
+	${MKDIR} -p ${DESTDIR}${PREFIX}/var/log/ipmi-gather
 	${INSTALL} -s -m 0755 ${BINS} ${DESTDIR}${PREFIX}/bin
 
 install-strip: install

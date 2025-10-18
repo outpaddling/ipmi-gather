@@ -6,6 +6,7 @@
 #include <unistd.h> // uid_t
 #include <errno.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <poll.h>
 #include <arpa/inet.h>  // inet_ntoa()
 #include <sys/socket.h>
@@ -354,3 +355,135 @@ int     ipmi_send_munge(int msg_fd, const char *msg, int(*close_function)(int))
     return IPMI_MSG_SENT;
 }
 
+
+/***************************************************************************
+ *  Description:
+ *      Echo a response from msg_fd directly to stdout.
+ *
+ *  History: 
+ *  Date        Name        Modification
+ *  2021-09-28  Jason Bacon Begin
+ ***************************************************************************/
+
+int     ipmi_print_response(int msg_fd, const char *caller_name)
+
+{
+    ssize_t bytes;
+    char    *payload;
+    bool    eot_received = false;
+    uid_t   uid;
+    gid_t   gid;
+    
+    // This function should never be called by dispatchd, so use
+    // a normal close()
+    while ( ! eot_received &&
+            (bytes = ipmi_recv_munge(msg_fd, &payload, 0,
+                                     IPMI_PRINT_RESPONSE_TIMEOUT,
+                                     &uid, &gid, close)) > 0 )
+    {
+        eot_received = (payload[bytes-1] == 4);
+        if ( eot_received )
+            --bytes;
+        payload[bytes] = '\0';
+        printf("%s", payload);
+        free(payload);
+    }
+    
+    if ( bytes == IPMI_RECV_TIMEOUT )
+    {
+        close(msg_fd);
+        ipmi_log("%s(): Error: fd = %d timed out after %dus\n",
+                 __FUNCTION__, msg_fd, IPMI_PRINT_RESPONSE_TIMEOUT);
+        return IPMI_RECV_TIMEOUT;
+    }
+    else if ( bytes == IPMI_RECV_FAILED )
+    {
+        // This function should never be called by dispatchd, so
+        // do a normal close() vs ipmi_dispatchd_safe_close()
+        close(msg_fd);
+        ipmi_log("%s(): Error: Failed to read response (fd = %d) from dispatchd: %s\n",
+                __FUNCTION__, msg_fd, strerror(errno));
+        return EX_IOERR;
+    }
+    else if ( bytes < 0 )
+    {
+        ipmi_log("%s(): Bug: Undefined return code from ipmi_recv(fd = %d): %d\n",
+                 __FUNCTION__, msg_fd, bytes);
+        // FIXME: What should we really do here?
+        return IPMI_RECV_FAILED;
+    }
+    return EX_OK;
+}
+
+
+/***************************************************************************
+ *  Description:
+ *      Wait for remote system to hang up.  This is used to avoid
+ *      "address already in use" errors that occur when a server
+ *      disconnects before the client does.
+ *  
+ *  History: 
+ *  Date        Name        Modification
+ *  2024-12-15  Jason Bacon Begin
+ ***************************************************************************/
+
+int     ipmi_wait_close(int msg_fd)
+
+{
+    char    buff[64];
+    
+    /*
+     *  Wait until EOF is signaled due to the other end being closed.
+     *  FIXME: No data should be read here.  The first read() should
+     *  return EOF.  Add a check for this.
+     *  FIXME: Could dispatchd hang in this loop if read() blocks?
+     *         Use poll() or something else?
+     */
+    ipmi_log("%s(): Waiting for client fd = %d to hang up...\n",
+            __FUNCTION__,msg_fd);
+    while ( read(msg_fd, buff, 64) > 0 )
+        usleep(250000);
+    
+    return 0;
+}
+
+
+/***************************************************************************
+ *  Description:
+ *      Safely close a socket by ensuring first that the remote end
+ *      is closed first.  This avoids
+ *
+ *      bind(): Address already in use
+ *  
+ *  History: 
+ *  Date        Name        Modification
+ *  2024-01-14  Jason Bacon Begin
+ ***************************************************************************/
+
+int     ipmi_gather_safe_close(int msg_fd)
+
+{
+    /*
+     *  Client must be looking for the EOT character at the end of
+     *  a read, or this is useless.  If this fails, closing msg_fd
+     *  will cause restart of dispatchd to fail with "address already in use"
+     */
+    
+    // FIXME: Why do we get the MCD expected warning after sending EOT?
+    ipmi_log("%s(): Sending EOT to fd = %d.\n", __FUNCTION__, msg_fd);
+    if ( ipmi_send_munge(msg_fd, IPMI_EOT_MSG,
+                         ipmi_no_close) == IPMI_MSG_SENT )
+    {
+        ipmi_wait_close(msg_fd);
+    }
+    
+    ipmi_debug("%s(): Closing %d.\n", __FUNCTION__, msg_fd);
+    return close(msg_fd);
+}
+
+
+int     ipmi_no_close(int fd)
+
+{
+    return 0;
+}

@@ -13,5 +13,6 @@ else
 fi
 
 for file in $files; do
+    echo $file
     cproto $extras -I$LOCALBASE/include $file > ${file%.c}-protos.h
 done

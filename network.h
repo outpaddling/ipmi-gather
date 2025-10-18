@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-#define IPMI_IP_TCP_PORT            20000
+#define IPMI_IP_TCP_PORT            22100
 #define IPMI_CONNECTION_QUEUE_MAX   128
 #define IPMI_NO_SELECT_TIMEOUT      NULL
 
@@ -28,6 +28,9 @@ extern "C" {
 #define IPMI_MSG_SENT       0
 #define IPMI_SEND_FAILED    -2
 #define IPMI_MUNGE_FAILED   -3
+
+#define IPMI_EOT                '\004'
+#define IPMI_EOT_MSG            "\004"
 
 #include "network-protos.h"
 

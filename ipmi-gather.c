@@ -95,15 +95,18 @@ int     check_listen_fd(int listen_fd)
         bytes = ipmi_recv_munge(msg_fd,
                      &munge_payload, 0, 0,
                      &munge_uid, &munge_gid,
-                     close);
+                     ipmi_gather_safe_close);
 
         ipmi_debug("%s(): Got %zd byte message.\n", __FUNCTION__, bytes);
-
+        printf("Incoming IP : %s\nuid : %d\ngid : %d\n%s\n",
+                    inet_ntoa(client_address.sin_addr),
+                    munge_uid, munge_gid, munge_payload);
+        
         if ( bytes == IPMI_RECV_TIMEOUT )
         {
             fprintf(stderr, "%s(): Error: ipmi_recv_munge() timed out after %dus: %s, closing %d.\n",
                     __FUNCTION__, IPMI_CONNECT_TIMEOUT, strerror(errno), msg_fd);
-            close(msg_fd);
+            ipmi_gather_safe_close(msg_fd);
             // Nothing to free if munge_decode() failed, since it
             // allocates the buffer
             // free(munge_payload);
@@ -113,7 +116,7 @@ int     check_listen_fd(int listen_fd)
         {
             fprintf(stderr, "%s(): Error: ipmi_recv_munge() failed (%zd bytes): %s, closing %d.\n",
                     __FUNCTION__, bytes, strerror(errno), msg_fd);
-            close(msg_fd);
+            ipmi_gather_safe_close(msg_fd);
             // Nothing to free if munge_decode() failed, since it
             // allocates the buffer
             // free(munge_payload);
@@ -129,6 +132,9 @@ int     check_listen_fd(int listen_fd)
         
         free(munge_payload);
     }
+
+    ipmi_send_munge(msg_fd, "Got it.\n", ipmi_no_close);
+    ipmi_gather_safe_close(msg_fd);
     
     return bytes;
 }

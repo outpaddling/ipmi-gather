@@ -159,7 +159,7 @@ int     check_listen_fd(int listen_fd)
         free(munge_payload);
     }
 
-    ipmi_send_munge(msg_fd, "Got it.\n", ipmi_no_close);
+    ipmi_send_munge(msg_fd, "Report received.\n", ipmi_no_close);
     ipmi_gather_safe_close(msg_fd);
     
     return bytes;

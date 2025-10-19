@@ -16,6 +16,10 @@
 #include <sysexits.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
 #include <fcntl.h>          // open()
 #include <errno.h>
 #include <limits.h>         // PATH_MAX
@@ -43,11 +47,18 @@ int     main (int argc, char *argv[])
             *gather_hostname,
             my_hostname[sysconf(_SC_HOST_NAME_MAX) + 1],
             user_name[USER_NAME_MAX + 1],
-            group_name[GROUP_NAME_MAX + 1];
+            group_name[GROUP_NAME_MAX + 1],
+            *local_ip;
     FILE    *ipmi_stream;
     size_t  msg_size;
+    struct hostent *host;
 
     gethostname(my_hostname, sysconf(_SC_HOST_NAME_MAX));
+    if ( (host = gethostbyname(my_hostname)) != NULL )
+        // Returns pointer to internal static buffer
+        local_ip = strdup(inet_ntoa(*((struct in_addr *)host->h_addr_list[0])));
+    else
+        local_ip = "Unknown";
     
     // Shared functions may use ipmi_log
     Log_stream = stderr;
@@ -65,8 +76,6 @@ int     main (int argc, char *argv[])
         return EX_IOERR;
     }
     
-    snprintf(outgoing_msg, IPMI_MSG_LEN_MAX + 1, "Hello!\n");
-
     if ( (ipmi_stream = popen("ipmitool chassis status", "r")) == NULL )
     {
         fprintf(stderr, ": Could not open %s for read: %s.\n",
@@ -76,10 +85,12 @@ int     main (int argc, char *argv[])
     
     snprintf(outgoing_msg, IPMI_MSG_LEN_MAX + 1,
             "Local hostname : %s\n"
+            "Local IP address : %s\n"
             "User name : %s\n"
             "Group name : %s\n",
-            my_hostname, xt_get_user_name(user_name, USER_NAME_MAX + 1),
+            my_hostname, local_ip, xt_get_user_name(user_name, USER_NAME_MAX + 1),
             xt_get_primary_group_name(group_name, GROUP_NAME_MAX + 1));
+    free(local_ip);
     
     payload_ptr = outgoing_msg + strlen(outgoing_msg);
     msg_size = fread(payload_ptr, 1, IPMI_MSG_LEN_MAX + 1, ipmi_stream);
@@ -89,8 +100,6 @@ int     main (int argc, char *argv[])
         strlcpy(payload_ptr, "No IPMI data.", IPMI_MSG_LEN_MAX + 1);
     else
         payload_ptr[msg_size] = '\0';
-    
-    printf("%zu\n", msg_size);
     
     // FIXME: Exiting here causes dispatchd to crash
 

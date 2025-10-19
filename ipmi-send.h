@@ -8,6 +8,8 @@ extern "C" {
 #define USER_NAME_MAX   64
 #define GROUP_NAME_MAX  64
 
+#define TIME_STR_MAX    64
+
 #include "ipmi-send-protos.h"
 
 #ifdef  __cplusplus

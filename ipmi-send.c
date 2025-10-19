@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <limits.h>         // PATH_MAX
 #include <stdbool.h>
+#include <time.h>           // time()
 
 // Addons
 #include <munge.h>
@@ -48,10 +49,13 @@ int     main (int argc, char *argv[])
             my_hostname[sysconf(_SC_HOST_NAME_MAX) + 1],
             user_name[USER_NAME_MAX + 1],
             group_name[GROUP_NAME_MAX + 1],
-            *local_ip;
+            *local_ip,
+            time_str[TIME_STR_MAX + 1];
     FILE    *ipmi_stream;
     size_t  msg_size;
     struct hostent *host;
+    time_t          tm;
+    struct tm       *tms;
 
     gethostname(my_hostname, sysconf(_SC_HOST_NAME_MAX));
     if ( (host = gethostbyname(my_hostname)) != NULL )
@@ -82,14 +86,20 @@ int     main (int argc, char *argv[])
                 "ipmitool chassis status", strerror(errno));
         exit(EX_NOINPUT);
     }
-    
+
+    time(&tm);
+    tms = localtime(&tm);
+    strftime(time_str, TIME_STR_MAX + 1, "%Y-%m-%d %H:%M", tms);
     snprintf(outgoing_msg, IPMI_MSG_LEN_MAX + 1,
             "Local hostname : %s\n"
             "Local IP address : %s\n"
             "User name : %s\n"
-            "Group name : %s\n",
-            my_hostname, local_ip, xt_get_user_name(user_name, USER_NAME_MAX + 1),
-            xt_get_primary_group_name(group_name, GROUP_NAME_MAX + 1));
+            "Group name : %s\n"
+            "Local time : %s\n",
+            my_hostname, local_ip,
+            xt_get_user_name(user_name, USER_NAME_MAX + 1),
+            xt_get_primary_group_name(group_name, GROUP_NAME_MAX + 1),
+            time_str);
     free(local_ip);
     
     payload_ptr = outgoing_msg + strlen(outgoing_msg);

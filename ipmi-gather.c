@@ -100,34 +100,7 @@ int     check_listen_fd(int listen_fd)
                      &munge_uid, &munge_gid,
                      ipmi_gather_safe_close);
 
-        puts(munge_payload);
-        
         ipmi_debug("%s(): Got %zd byte message.\n", __FUNCTION__, bytes);
-        if ( memcmp(munge_payload, "Local hostname", 14) == 0 )
-        {
-            if ( (separator = strchr(munge_payload, ':')) != NULL )
-            {
-                filename = separator + 2;
-                separator = strchr(filename, '\n');
-                *separator = '\0';
-                printf("Saving to %s\n", filename);
-                // Open while filename is still null-terminated
-                if ( (out_stream = fopen(filename, "w")) == NULL )
-                {
-                    fprintf(stderr, ": Could not open %s for write: %s.\n",
-                            filename, strerror(errno));
-                    exit(EX_CANTCREAT);
-                }
-                // Replace null-terminator with original NL to restore payload
-                *separator = '\n';
-                
-                fprintf(out_stream, "Incoming IP : %s\nuid : %d\ngid : %d\n%s\n",
-                            inet_ntoa(client_address.sin_addr),
-                            munge_uid, munge_gid, munge_payload);
-                fclose(out_stream);
-            }
-        }
-        
         if ( bytes == IPMI_RECV_TIMEOUT )
         {
             fprintf(stderr, "%s(): Error: ipmi_recv_munge() timed out after %dus: %s, closing %d.\n",
@@ -154,6 +127,31 @@ int     check_listen_fd(int listen_fd)
             fprintf(stderr, "%s(): Bug: Invalid return code from ipmi_recv_munge(): %zu\n",
                      __FUNCTION__, bytes);
             return IPMI_RECV_FAILED;
+        }
+        
+        if ( memcmp(munge_payload, "Local hostname", 14) == 0 )
+        {
+            if ( (separator = strchr(munge_payload, ':')) != NULL )
+            {
+                filename = separator + 2;
+                separator = strchr(filename, '\n');
+                *separator = '\0';
+                printf("Saving to %s\n", filename);
+                // Open while filename is still null-terminated
+                if ( (out_stream = fopen(filename, "w")) == NULL )
+                {
+                    fprintf(stderr, ": Could not open %s for write: %s.\n",
+                            filename, strerror(errno));
+                    exit(EX_CANTCREAT);
+                }
+                // Replace null-terminator with original NL to restore payload
+                *separator = '\n';
+                
+                fprintf(out_stream, "Incoming IP : %s\nuid : %d\ngid : %d\n%s\n",
+                            inet_ntoa(client_address.sin_addr),
+                            munge_uid, munge_gid, munge_payload);
+                fclose(out_stream);
+            }
         }
         
         free(munge_payload);
